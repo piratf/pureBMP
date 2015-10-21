@@ -68,36 +68,56 @@ public:
  * 而对于真彩色图等较大的图，不需要调色板
  */
 struct RGBQuad {
-    BYTE rgbBlue;   //该颜色的蓝色分量
-    BYTE rgbGreen;  //该颜色的绿色分量
-    BYTE rgbRed;    //该颜色的红色分量
-    BYTE rgbReserved;   //保留值
-}; //调色板定义
+    BYTE rgbBlue;   // 该颜色的蓝色分量
+    BYTE rgbGreen;  // 该颜色的绿色分量
+    BYTE rgbRed;    // 该颜色的红色分量
+    BYTE rgbReserved;   // 保留值
+}; // 调色板定义
 
-//像素信息
+// 像素信息
 struct ImgData
 {
     BYTE red;
     BYTE green;
     BYTE blue;
+
+    ImgData(): red(0), green(0), blue(0) {
+    }
+
+    ImgData(BYTE _red, BYTE _green, BYTE _blue) {
+        red = _red;
+        green = _green;
+        blue = _blue;
+    }
 };
+
+double inline angle2Radian(double angle) {
+    return PI * angle / 180;
+}
+
+double inline radian2Angle (double radian) {
+    return radian * 180 / PI;
+}
+
+double inline dmod(double var, unsigned MOD) {
+    return (var - floor(var)) + ((int)floor(var) % MOD);
+}
 
 class pBMP
 {
 public:
 
-    //读取调色板
+    // read palette
     void readQuad(RGBQuad *quad, BitmapFileInfoHeader &infoHeader, FILE *fpi) {
         for (unsigned int nCounti = 0; nCounti < infoHeader.biClrUsed; nCounti++)
         {
-            //存储的时候，一般去掉保留字rgbReserved
             fread((char *)&quad[nCounti].rgbBlue, 1, sizeof(BYTE), fpi);
             fread((char *)&quad[nCounti].rgbGreen, 1, sizeof(BYTE), fpi);
             fread((char *)&quad[nCounti].rgbRed, 1, sizeof(BYTE), fpi);
         }
     }
 
-    //写调色板到文件
+    // write quad to file
     void writeQuad(RGBQuad *strPla, BitmapFileInfoHeader &infoHeader, FILE *fpi) {
         for (unsigned int nCounti = 0; nCounti < infoHeader.biClrUsed; nCounti++)
         {
@@ -120,19 +140,19 @@ public:
         if (TYPE_IDENTIFIER == fileType) {
             fread(&fileHeader, 1, sizeof(BitmapFileHeader), fin);
             fread(&infoHeader, 1, sizeof(BitmapFileInfoHeader), fin);
-            fileHeader.display();
-            infoHeader.display();
+            // fileHeader.display();
+            // infoHeader.display();
 
             quad = nullptr;
             if (infoHeader.biClrUsed) {
-                quad = new RGBQuad[256]; // 256 色调色板
+                quad = new RGBQuad[256]; // palette need 256 different color.
                 readQuad(quad, infoHeader, fin);
             }
 
             width = infoHeader.biWidth;
             height = infoHeader.biHeight;
 
-            // 读入图像数据
+            // read imgData
             imgData = (ImgData*)malloc(sizeof(ImgData) * width * height);
             fread(imgData, sizeof(ImgData) * width, height, fin);
             fclose(fin);
@@ -155,21 +175,110 @@ public:
         fwrite(&fileHeader, 1, sizeof(BitmapFileHeader), fout);
         fwrite(&infoHeader, 1, sizeof(BitmapFileInfoHeader), fout);
         if (infoHeader.biClrUsed) {
+            // save quad
             writeQuad(quad, infoHeader, fout);
         }
-        delete[] quad;
-        //保存像素数据
-        for (unsigned i = 0; i < height; ++i)
-        {
-            for (unsigned j = 0; j < width; ++j)
-            {
-                fwrite( &(*(imgData + i * width + j)).red, 1, sizeof(BYTE), fout); //注意三条语句的顺序：否则颜色会发生变化
+        // now save the imgData
+        for (unsigned i = 0; i < height; ++i) {
+            for (unsigned j = 0; j < width; ++j) {
+                fwrite( &(*(imgData + i * width + j)).red, 1, sizeof(BYTE), fout);
                 fwrite( &(*(imgData + i * width + j)).green, 1, sizeof(BYTE), fout);
                 fwrite( &(*(imgData + i * width + j)).blue, 1, sizeof(BYTE), fout);
             }
         }
         fclose(fout);
         return 0;
+    }
+
+    pBMP rot(double targetAngle) {
+        double angle = dmod(targetAngle, 180);
+        if (angle > 90) {
+            angle = 180 - angle;
+        }
+
+        // length of diagonal
+        double diagonal = sqrt(width * width + height * height);
+        printf("diagonal Width = %lf\n", diagonal);
+        double baseAngleHeight = asin(height / diagonal);
+        printf("baseAngleHeight = %lf\n", radian2Angle(baseAngleHeight));
+        // this is the sum radian of rotation angle and base angel between diagonal and height
+        double radianHeight = angle2Radian(dmod(angle + radian2Angle(baseAngleHeight), 180));
+        printf("radianHeight = %lf\n", radian2Angle(radianHeight));
+        // get the height of target img.
+        double targetHeight = diagonal * sin(radianHeight);
+        printf("targetHeight = %lf\n", targetHeight);
+
+        // sum radian of rotation angle and base angel between diagonal and width
+        double radianWidth = angle2Radian(dmod(angle + (90 - radian2Angle(baseAngleHeight)), 180));
+        // width of the target img.
+        double targetWidth = diagonal * sin(radianWidth);
+        printf("target Width = %lf\n", targetWidth);
+        fflush(stdout);
+
+        // At rotate process, because of the diagonal is longer of both height and width, the output picture may has different size with the original img. The codes above want to figure the best size of output img, not too big to wasting memory, and just enough to contain the target picture.
+
+
+        // the output image
+        pBMP result = *this;
+        // the width and height of .BMP need to be a multiple of 4
+        result.width = ((LONG)ceil(targetWidth) + 3) / 4 * 4;
+        result.height = ((LONG)ceil(targetHeight) + 3) / 4 * 4;
+
+        result.infoHeader.biWidth = result.width;
+        result.infoHeader.biHeight = result.height;
+        unsigned block = sizeof(ImgData) * result.height * result.width;
+        ImgData *rotData = (ImgData*)malloc(block);
+        memset(rotData, 0x3f3f3f3f, block);
+
+        // start rot process
+        // middle position of original img.
+        unsigned imid = height / 2,
+                 jmid = width / 2,
+                 // middle position of result img.
+                 imidr = result.height / 2,
+                 jmidr = result.width / 2;
+        int x = 0,
+            y = 0;
+        unsigned xn = 0,
+                 yn = 0;
+
+        printf("angle = %lf\n", angle);
+        printf("result height = %u\n", result.height);
+        printf("result width = %u\n", result.width);
+        fflush(stdout);
+        angle = angle2Radian(targetAngle);
+
+        // Traverse point of the result image, Reverse out original point coordinates. Could be slower.
+        for (unsigned i = 0; i < result.height; ++i) {
+            for (unsigned j = 0; j < result.width; ++j) {
+                x = i - imidr;
+                y = j - jmidr;
+                xn = x * cos(angle) - y * sin(angle) + imid;
+                yn = x * sin(angle) + y * cos(angle) + jmid;
+                if (xn <= height && yn <= width) {
+                    *(rotData + i * result.width + j) = *(imgData + xn * width + yn);
+                }
+            }
+        }
+
+        // Traverse point of the original image, calculate result point and check the position. Could be faster.
+        // for (unsigned i = 0; i < height; ++i) {
+        //     for (unsigned j = 0; j < width; ++j) {
+        //         x = i - imid;
+        //         y = j - jmid;
+        //         x = x * cos(angle) + y * sin(angle);
+        //         y = y * cos(angle) - x * sin(angle);
+        //         xn = x + imidr;
+        //         yn = y + jmidr;
+        //         if (xn <= result.height && yn <= result.width) {
+        //             *(rotData + result.width * xn + yn) = *(imgData + i * width + j);
+        //         }
+        //     }
+        // }
+
+        // put rotData on the imgData pointer
+        result.imgData = rotData;
+        return result;
     }
 
     static const WORD TYPE_IDENTIFIER = 0x4d42;
@@ -179,27 +288,7 @@ public:
     ImgData *imgData;
     unsigned height;
     unsigned width;
-
 };
 
 
-
-
-
-double inline angle2Radian(double angle) {
-    return PI * angle / 180;
-}
-
-ImgData * rot(ImgData *imgData, const unsigned width, const unsigned height, double angle) {
-    // 输入的角度转弧度
-    // double radian = angle2Radian(angle);
-    // 准备输出数据
-    ImgData *result = (ImgData*)malloc(sizeof(ImgData) * width * height);
-    memset(result, 0, sizeof(ImgData) * width * height);
-    return imgData;
-}
-
-ImgData * readBMP() {
-    return NULL;
-}
 
