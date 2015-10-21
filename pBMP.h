@@ -217,7 +217,6 @@ public:
 
         // At rotate process, because of the diagonal is longer of both height and width, the output picture may has different size with the original img. The codes above want to figure the best size of output img, not too big to wasting memory, and just enough to contain the target picture.
 
-
         // the output image
         pBMP result = *this;
         // the width and height of .BMP need to be a multiple of 4
@@ -249,32 +248,32 @@ public:
         angle = angle2Radian(targetAngle);
 
         // Traverse point of the result image, Reverse out original point coordinates. Could be slower.
-        for (unsigned i = 0; i < result.height; ++i) {
-            for (unsigned j = 0; j < result.width; ++j) {
-                x = i - imidr;
-                y = j - jmidr;
-                xn = x * cos(angle) - y * sin(angle) + imid;
-                yn = x * sin(angle) + y * cos(angle) + jmid;
-                if (xn <= height && yn <= width) {
-                    *(rotData + i * result.width + j) = *(imgData + xn * width + yn);
-                }
-            }
-        }
-
-        // Traverse point of the original image, calculate result point and check the position. Could be faster.
-        // for (unsigned i = 0; i < height; ++i) {
-        //     for (unsigned j = 0; j < width; ++j) {
-        //         x = i - imid;
-        //         y = j - jmid;
-        //         x = x * cos(angle) + y * sin(angle);
-        //         y = y * cos(angle) - x * sin(angle);
-        //         xn = x + imidr;
-        //         yn = y + jmidr;
-        //         if (xn <= result.height && yn <= result.width) {
-        //             *(rotData + result.width * xn + yn) = *(imgData + i * width + j);
+        // for (unsigned i = 0; i < result.height; ++i) {
+        //     for (unsigned j = 0; j < result.width; ++j) {
+        //         x = i - imidr;
+        //         y = j - jmidr;
+        //         xn = x * cos(angle) - y * sin(angle) + imid;
+        //         yn = x * sin(angle) + y * cos(angle) + jmid;
+        //         if (xn <= height && yn <= width) {
+        //             *(rotData + i * result.width + j) = *(imgData + xn * width + yn);
         //         }
         //     }
         // }
+
+        // Traverse point of the original image, calculate result point and check the position. Could be faster.
+        for (unsigned i = 0; i < height; ++i) {
+            for (unsigned j = 0; j < width; ++j) {
+                x = i - imid;
+                y = j - jmid;
+                x = x * cos(angle) + y * sin(angle);
+                y = y * cos(angle) - x * sin(angle);
+                xn = x + imidr;
+                yn = y + jmidr;
+                if (xn <= result.height && yn <= result.width) {
+                    *(rotData + result.width * xn + yn) = *(imgData + i * width + j);
+                }
+            }
+        }
 
         // put rotData on the imgData pointer
         result.imgData = rotData;
