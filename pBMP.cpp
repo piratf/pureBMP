@@ -46,7 +46,7 @@ double inline radian2Angle (double radian) {
 double inline dmod(double var, unsigned MOD) {
     if (var < 0) {
         var = var + ((abs(var) / MOD) + 1) * MOD;
-        printf("var = %lf\n", var);
+        // printf("var = %lf\n", var);
     }
     if (var < MOD) {
         return var;
@@ -116,6 +116,7 @@ int pBMP::read(const char *filePath) {
 
         width = infoHeader.biWidth;
         height = infoHeader.biHeight;
+        blockSize = width * height;
 
         // read imgData
         imgData = (ImgData*)malloc(sizeof(ImgData) * width * height);
@@ -173,26 +174,26 @@ pBMP pBMP::rot(double targetAngle) {
         angle = 180 - angle;
     }
 
+    // At rotate process, because of the diagonal is longer of both height and width, the output picture may has different size with the original img. The codes above want to figure the best size of output img, not too big to wasting memory, and just enough to contain the target picture.
+
     // length of diagonal
     double diagonal = sqrt(width * width + height * height);
-    printf("diagonal Width = %lf\n", diagonal);
+    // printf("diagonal Width = %lf\n", diagonal);
     double baseAngleHeight = asin(height / diagonal);
-    printf("baseAngleHeight = %lf\n", radian2Angle(baseAngleHeight));
+    // printf("baseAngleHeight = %lf\n", radian2Angle(baseAngleHeight));
     // this is the sum radian of rotation angle and base angel between diagonal and height
     double radianHeight = angle2Radian(dmod(angle + radian2Angle(baseAngleHeight), 180));
-    printf("radianHeight = %lf\n", radian2Angle(radianHeight));
+    // printf("radianHeight = %lf\n", radian2Angle(radianHeight));
     // get the height of target img.
     double targetHeight = diagonal * sin(radianHeight);
-    printf("targetHeight = %lf\n", targetHeight);
+    // printf("targetHeight = %lf\n", targetHeight);
 
     // sum radian of rotation angle and base angel between diagonal and width
     double radianWidth = angle2Radian(dmod(angle + (90 - radian2Angle(baseAngleHeight)), 180));
     // width of the target img.
     double targetWidth = diagonal * sin(radianWidth);
-    printf("target Width = %lf\n", targetWidth);
-    fflush(stdout);
-
-    // At rotate process, because of the diagonal is longer of both height and width, the output picture may has different size with the original img. The codes above want to figure the best size of output img, not too big to wasting memory, and just enough to contain the target picture.
+    // printf("target Width = %lf\n", targetWidth);
+    // fflush(stdout);
 
     // the output image
     pBMP result = *this;
@@ -218,10 +219,10 @@ pBMP pBMP::rot(double targetAngle) {
     unsigned xn = 0,
              yn = 0;
 
-    printf("angle = %lf\n", angle);
-    printf("result height = %u\n", result.height);
-    printf("result width = %u\n", result.width);
-    fflush(stdout);
+    // printf("angle = %lf\n", angle);
+    // printf("result height = %lu\n", result.height);
+    // printf("result width = %lu\n", result.width);
+    // fflush(stdout);
     angle = angle2Radian(targetAngle);
 
     // Traverse point of the result image, Reverse out original point coordinates. Could be slower. But could save all possible pixels even if the point between to img could not correspondence
@@ -253,4 +254,116 @@ pBMP pBMP::rot(double targetAngle) {
     // put rotData on the imgData pointer
     result.imgData = rotData;
     return result;
+}
+
+long getDiameter(const int radius) {
+    return (radius << 1) + 1;
+}
+
+double * oneDimensionalGaussianFilter(const long radius) {
+    double *kernel = (double *)malloc(sizeof(double) * getDiameter(radius));
+
+    const double SQRT2PI = sqrt(2 * PI);
+
+    const double sigma = radius / 3.0;
+    const double sigma2 = sigma * 2.0 * sigma;
+    const double sigmap = sigma * SQRT2PI;
+
+    for (long n = 0, i = -radius; i <= radius; ++i, ++n)
+        kernel[n] = exp(-(double)(i * i) / sigma2) / sigmap;
+
+    return kernel;
+}
+
+double * twoDimensionalGaussianFilter(const long radius) {
+    // diameter length
+    unsigned long diameter = getDiameter(radius);
+    double *kernel = (double *)malloc(sizeof(double) * diameter * diameter);
+
+    const double sigma = radius / 3.0;
+    const double sigma2 = sigma * 2.0 * sigma;
+    const double sigmap = sigma2 * PI;
+
+    unsigned r = 0;
+
+    for (long i = -radius, n = 0; i <= radius; ++i) {
+        r = i * i;
+        for (long j = -radius; j <= radius; ++j, ++n) {
+            kernel[n] = exp( -(double)(r + j * j) / sigma2) / sigmap;
+        }
+    }
+    return kernel;
+}
+
+long long edgeFilp(unsigned long i, unsigned long x, unsigned long w) {
+    unsigned long i_k = x + i;
+    return (i_k < 0) ? -x
+           : (i_k >= w) ? (w - 1 - x)
+           : i;
+}
+
+BYTE inline clampColor(double color) {
+    return (color < CLAMP) ? color : CLAMP;
+}
+
+void Normalization(double *mask, const unsigned long size) {
+    double sum = 0.0;
+    for (unsigned long n = 0; n < size; ++n)
+        sum += mask[n];
+    if (sum - 1.0 < 1e-12) return;
+    for (unsigned long n = 0; n < size; ++n)
+        mask[n] = mask[n] / sum;
+}
+
+pBMP pBMP::blur(const long radius) {
+    assert(radius > 0);
+
+    // use one dimensional gaussian filter mask
+    double *mask = oneDimensionalGaussianFilter(radius);
+
+    ImgData *blurData = (ImgData *)malloc(blockSize * sizeof(double));
+    // printf("%u, %ld\n", blockSize, (long)getDiameter(radius));
+    // fflush(stdout);
+
+    Normalization(mask, radius);
+
+    unsigned long n = 0;
+    long x = 0;
+    unsigned long t, i, j, i_k, inx_k;
+    for (t = 0, i = 0; i < height; ++i) {
+        for (j = 0; j < width; ++j, ++t) {
+            for (n = 0, x = -radius; x < radius; ++x, ++n) {
+                i_k = edgeFilp(x, j, width);
+                inx_k = t + i_k;
+                // printf("%ld, %lld %ld ", r, i_k, n);
+                blurData[t].red += imgData[inx_k].red * mask[n];
+                blurData[t].green += imgData[inx_k].green * mask[n];
+                blurData[t].blue += imgData[inx_k].blue * mask[n];
+            }
+        }
+    }
+
+    double r = 0.0, g = 0.0, b = 0.0;
+    for (t = 0, i = 0; i < width; ++i) {
+        for (j = 0; j < height; ++j) {
+            t = j * width + i;
+            r = g = b = 0;
+            for (n = 0, x = -radius; x < radius; ++x, ++n) {
+                i_k = edgeFilp(x, j, height);
+                inx_k = t + i_k * width;
+                r += blurData[inx_k].red * mask[n];
+                g += blurData[inx_k].green  * mask[n];
+                b += blurData[inx_k].blue * mask[n];
+            }
+            blurData[t].red = clampColor(r);
+            blurData[t].green = clampColor(g);
+            blurData[t].blue = clampColor(b);
+        }
+    }
+
+    pBMP blurImg = *this;
+    blurImg.imgData = blurData;
+
+    delete [] mask;
+    return blurImg;
 }

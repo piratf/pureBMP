@@ -8,6 +8,8 @@ using WORD = unsigned short;
 using DWORD = unsigned int;
 using LONG = long;
 
+const BYTE CLAMP = (BYTE)~0;
+
 const double PI = acos(-1);
 
 //位图文件头定义;
@@ -127,13 +129,16 @@ public:
      */
     pBMP rot(double targetAngle);
 
+    pBMP blur(const long radius);
+
     static const WORD TYPE_IDENTIFIER = 0x4d42;
     BitmapFileHeader fileHeader;
     BitmapFileInfoHeader infoHeader;
     RGBQuad *quad;
     ImgData *imgData;
-    unsigned height;
-    unsigned width;
+    unsigned long height;
+    unsigned long width;
+    unsigned long blockSize;
 
     ~pBMP() {
         delete [] quad;

@@ -20,3 +20,9 @@ Algorithm can be used:
 > + rot
 
     rotate BMP files, could calcule the minimum size of the output image file, and fast enough.
+    return a new picture.
+
+> + blur
+
+    fuzzy picture with one dimensional gaussian mask. 
+    return a new picture.
