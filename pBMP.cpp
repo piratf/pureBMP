@@ -11,7 +11,6 @@
  * @author piratf
  */
 void BitmapFileHeader::display() {
-    std::cout << "位图文件头: " << std::endl;
     std::cout << "文件大小: " << bfSize << std::endl;
     std::cout << "保留字_1: " << bfReserved1 << std::endl;
     std::cout << "保留字_2: " << bfReserved2 << std::endl;
@@ -30,25 +29,43 @@ void BitmapFileInfoHeader::display() {
     std::cout << "biPlanes - 平面数: " << biPlanes << std::endl;
     std::cout << "biBitCount - 采用颜色位数: " << biBitCount << std::endl;
     std::cout << "biCompression - 压缩方式: " << biCompression << std::endl;
-    std::cout << "biSizeImage实际位图数据占用的字节数: " << biSizeImage << std::endl;
+    std::cout << "biSizeImage - 实际位图数据占用的字节数: " << biSizeImage << std::endl;
     std::cout << "biXPelsPerMeter - X方向分辨率: " << biXPelsPerMeter << std::endl;
     std::cout << "biYPelsPerMeter - Y方向分辨率: " << biYPelsPerMeter << std::endl;
     std::cout << "biClrUsed - 使用的颜色数: " << biClrUsed << std::endl;
     std::cout << "biClrImportant - 重要颜色数: " << biClrImportant << std::endl;
 }
 
+/**
+ * calculate the angle to radian
+ * @author piratf
+ * @param  angle input angle
+ * @return       radian value
+ */
 double inline angle2Radian(double angle) {
     return PI * angle / 180;
 }
 
+/**
+ * calculate the radian to angle
+ * @author piratf
+ * @param  radian input radian
+ * @return       angel value
+ */
 double inline radian2Angle (double radian) {
     return radian * 180 / PI;
 }
 
+/**
+ * a mod process for double value
+ * @author piratf
+ * @param  var input value to be mod
+ * @param  MOD base of this mod process
+ * @return     the value after mod
+ */
 double inline dmod(double var, unsigned MOD) {
     if (var < 0) {
         var = var + ((abs(var) / MOD) + 1) * MOD;
-        // printf("var = %lf\n", var);
     }
     if (var < MOD) {
         return var;
