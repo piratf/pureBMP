@@ -291,10 +291,10 @@ double * oneDimensionalGaussianFilter(const long radius) {
 }
 
 /**
- * 获取二维高斯蒙版
+ * get two dimensional gaussian filter mask
  * @author piratf
- * @param  radius 高斯蒙版半径
- * @return        高斯蒙版指针
+ * @param  radius radius of the mask
+ * @return        pointer of the new mask
  */
 double * twoDimensionalGaussianFilter(const long radius) {
     // diameter length
@@ -317,12 +317,12 @@ double * twoDimensionalGaussianFilter(const long radius) {
 }
 
 /**
- * 边缘翻转
+ * filp the coordinate close to the edge.
  * @author piratf
- * @param  i 蒙版中的坐标
- * @param  x 被处理图片中的当前坐标
- * @param  w 图片宽度
- * @return   处理过后的新坐标
+ * @param  i coordinate in mask
+ * @param  x coordinate in the target picture
+ * @param  w width of the target picture
+ * @return   the new coordinate(position)
  */
 long long edgeFilp(unsigned long mask, unsigned long img, unsigned long width) {
     unsigned long i_k = img + mask;
@@ -332,20 +332,26 @@ long long edgeFilp(unsigned long mask, unsigned long img, unsigned long width) {
 }
 
 /**
- * 让色彩值不超过 256 色的范围
+ * clamp color value inside 0 - 255
  * @author piratf
- * @param  color 色彩值
- * @return       BYTE 大小的经过处理的色彩值
+ * @param  color some value
+ * @return       BYTE const BYTE value 255
  */
 BYTE inline clampColor(double color) {
     return (color < CLAMP) ? color : CLAMP;
 }
 
+int clamp(int x, int l, int h) {
+    return (x < l) ? x
+           : (x > h) ? h
+           : x;
+}
+
 /**
- * 高斯矩阵归一化
+ * normalization the gaussian mask, so the result picture will not too bright or feel dark.
  * @author piratf
- * @param  mask 高斯矩阵指针
- * @param  size 高斯矩阵总大小 (height * width)
+ * @param  mask pointer of the gaussian mask
+ * @param  size total size of the gaussian mask matrix (height * width)
  */
 void normalizationMask(double *mask, const unsigned long size) {
     double sum = 0.0;
@@ -357,10 +363,10 @@ void normalizationMask(double *mask, const unsigned long size) {
 }
 
 /**
- * 高斯模糊函数，返回新的 BMP 实体
+ * one dimensional gaussian blur algorithm
  * @author piratf
- * @param  radius 模糊半径
- * @return        新的被模糊后的 BMP 实体
+ * @param  radius radius of the gaussian mask, could affect the running time
+ * @return        a new pBMP object will be return
  */
 pBMP pBMP::blur(const long radius) {
     assert(radius > 0);
@@ -369,8 +375,6 @@ pBMP pBMP::blur(const long radius) {
     double *mask = oneDimensionalGaussianFilter(radius);
 
     ImgData *blurData = (ImgData *)malloc(blockSize * sizeof(ImgData));
-    // printf("%u, %ld\n", blockSize, (long)getDiameter(radius));
-    // fflush(stdout);
 
     normalizationMask(mask, radius);
 
@@ -382,7 +386,6 @@ pBMP pBMP::blur(const long radius) {
             for (n = 0, x = -radius; x < radius; ++x, ++n) {
                 i_k = edgeFilp(x, j, width);
                 inx_k = t + i_k;
-                // printf("%ld, %lld %ld ", r, i_k, n);
                 blurData[t].red += imgData[inx_k].red * mask[n];
                 blurData[t].green += imgData[inx_k].green * mask[n];
                 blurData[t].blue += imgData[inx_k].blue * mask[n];

@@ -8,13 +8,14 @@ using WORD = unsigned short;
 using DWORD = unsigned int;
 using LONG = long;
 
+// const BYTE value 255 for upper limit of the color value
 const BYTE CLAMP = (BYTE)~0;
 
 const double PI = acos(-1);
 
-//位图文件头定义;
-//其中不包含文件类型信息（由于结构体的内存结构决定，
-//要是加了的话将不能正确读取文件信息）
+/**
+ * Header block of .bmp file, at the first parts
+ */
 class BitmapFileHeader {
 
 public:
@@ -24,13 +25,16 @@ public:
      */
     void display();
 
-    // WORD bfType;//文件类型，必须是0x424D，即字符“BM”
-    DWORD bfSize;//文件大小
-    WORD bfReserved1;//保留字
-    WORD bfReserved2;//保留字
-    DWORD bfOffBits;//从文件头到实际位图数据的偏移字节数
+    // WORD bfType; // must be 0x4d42 for checking real type of input file
+    DWORD bfSize;   // size of .bmp file
+    WORD bfReserved1;   // reserved, skipped
+    WORD bfReserved2;   // reserved, skipped
+    DWORD bfOffBits;    // actual offset bytes
 };
 
+/**
+ * info of the picture, the second part
+ */
 class BitmapFileInfoHeader {
 
 public:
@@ -40,33 +44,34 @@ public:
      */
     void display();
 
-    DWORD biSize;       //信息头大小, 需要是40
-    LONG biWidth;       //图像宽度, 单位是象素。
-    LONG biHeight;      //图像高度, 单位是象素。
-    WORD biPlanes;      //位平面数, 必须为1
-    WORD biBitCount;    //每像素位数, 常用的值为1(黑白二色图), 4(16色图), 8(256色), 24(真彩色图)(新的.bmp格式支持32位色)
-    DWORD biCompression;    //压缩类型, 指定位图是否压缩，有效的值为BI_RGB，BI_RLE8，BI_RLE4，BI_BITFIELDS
-    DWORD biSizeImage;      //压缩图像大小字节数
-    LONG biXPelsPerMeter;   //水平分辨率, 单位是每米的象素个数
-    LONG biYPelsPerMeter;   //垂直分辨率, 单位是每米的象素个数
-    DWORD biClrUsed;        //位图实际用到的色彩数. 如果该值为零, 则用到的颜色数为2 ^ biBitCount
-    DWORD biClrImportant;   //本位图中重要的色彩数, 如果该值为零，则认为所有的颜色都是重要的。
-}; //位图信息头定义
+    DWORD biSize;       // must be 40, the size of info header.
+    LONG biWidth;       // width of the picture, pixel for unit
+    LONG biHeight;      // height of the picture, pixel for unit
+    WORD biPlanes;      // must be 1, the count of planes.
+    WORD biBitCount;    // count for bits of each pixel, 1 for black-white, n for 2 ^ n different colors picture, now it could be 32 for the most large oe.
+    DWORD biCompression;    // type of compression, constant value in windows: BI_RGB，BI_RLE8，BI_RLE4，BI_BITFIELDS, the first one means no compression
+    DWORD biSizeImage;      // size of bytes of the compression image
+    LONG biXPelsPerMeter;   // pixels per meter in horizontal
+    LONG biYPelsPerMeter;   // pixels per meter in vertical
+    DWORD biClrUsed;        // use RGB pad
+    DWORD biClrImportant;   // the count for important colors in the picture, 0 means all colors are improtant
+};
 
-/** 调色板
- * 有些位图文件需要用到调色板
- * 而对于真彩色图等较大的图，不需要调色板
+/** RGB palette
+ * for some of the .BMP file
  */
 class RGBQuad {
 
 public:
-    BYTE rgbBlue;   // 该颜色的蓝色分量
-    BYTE rgbGreen;  // 该颜色的绿色分量
-    BYTE rgbRed;    // 该颜色的红色分量
-    BYTE rgbReserved;   // 保留值
-}; // 调色板定义
+    BYTE rgbBlue;
+    BYTE rgbGreen;
+    BYTE rgbRed;
+    BYTE rgbReserved;
+};
 
-// 像素信息
+/**
+ * data of the each pixel.
+ */
 struct ImgData
 {
     BYTE red;
@@ -82,6 +87,12 @@ struct ImgData
         blue = _blue;
     }
 
+    /**
+     * use int value to initialize ImgData object.
+     */
+    ImgData(int color): red(color >> 16), green(color >> 8), blue(color) {
+    }
+
     ImgData operator += (const ImgData &other) {
         red += other.red;
         green += other.green;
@@ -94,6 +105,10 @@ struct ImgData
         green /= other;
         blue /= other;
         return *this;
+    }
+
+    operator int() {
+        return (0 | (red << 16) | (green << 8) || (blue));
     }
 
     void clear() {
@@ -158,9 +173,13 @@ public:
      */
     pBMP rot(double targetAngle);
 
+    /**
+     * one dimensional gaussian blur algorithm
+     * @author piratf
+     * @param  radius radius of the gaussian mask, could affect the running time
+     * @return        a new pBMP object will be return
+     */
     pBMP blur(const long radius);
-
-    pBMP gaussBlur_2 (long radius);
 
     ~pBMP() {
         delete [] quad;
@@ -175,8 +194,6 @@ public:
     unsigned long height;
     unsigned long width;
     unsigned long blockSize;
-private:
-    void boxBlur_2 (ImgData *blurData, long radius);
 };
 
 #endif
