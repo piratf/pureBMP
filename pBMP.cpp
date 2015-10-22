@@ -3,6 +3,8 @@
 #include <cmath>
 #include <cstring>
 #include <cassert>
+#include <vector>
+#include <algorithm>
 
 /**
  * display infomation
@@ -200,6 +202,7 @@ pBMP pBMP::rot(double targetAngle) {
     // the width and height of .BMP need to be a multiple of 4
     result.width = ((LONG)ceil(targetWidth) + 3) / 4 * 4;
     result.height = ((LONG)ceil(targetHeight) + 3) / 4 * 4;
+    result.blockSize = result.width * result.height;
 
     result.infoHeader.biWidth = result.width;
     result.infoHeader.biHeight = result.height;
@@ -256,10 +259,22 @@ pBMP pBMP::rot(double targetAngle) {
     return result;
 }
 
+/**
+ * 获取直径
+ * @author piratf
+ * @param  radius 半径
+ * @return        直径 = 半径 x 2 + 1
+ */
 long getDiameter(const int radius) {
     return (radius << 1) + 1;
 }
 
+/**
+ * 获取一维高斯蒙版
+ * @author piratf
+ * @param  radius 高斯蒙版半径
+ * @return        高斯蒙版指针
+ */
 double * oneDimensionalGaussianFilter(const long radius) {
     double *kernel = (double *)malloc(sizeof(double) * getDiameter(radius));
 
@@ -275,6 +290,12 @@ double * oneDimensionalGaussianFilter(const long radius) {
     return kernel;
 }
 
+/**
+ * 获取二维高斯蒙版
+ * @author piratf
+ * @param  radius 高斯蒙版半径
+ * @return        高斯蒙版指针
+ */
 double * twoDimensionalGaussianFilter(const long radius) {
     // diameter length
     unsigned long diameter = getDiameter(radius);
@@ -295,18 +316,38 @@ double * twoDimensionalGaussianFilter(const long radius) {
     return kernel;
 }
 
-long long edgeFilp(unsigned long i, unsigned long x, unsigned long w) {
-    unsigned long i_k = x + i;
-    return (i_k < 0) ? -x
-           : (i_k >= w) ? (w - 1 - x)
-           : i;
+/**
+ * 边缘翻转
+ * @author piratf
+ * @param  i 蒙版中的坐标
+ * @param  x 被处理图片中的当前坐标
+ * @param  w 图片宽度
+ * @return   处理过后的新坐标
+ */
+long long edgeFilp(unsigned long mask, unsigned long img, unsigned long width) {
+    unsigned long i_k = img + mask;
+    return (i_k < 0) ? -img
+           : (i_k >= width) ? (width - 1 - img)
+           : mask;
 }
 
+/**
+ * 让色彩值不超过 256 色的范围
+ * @author piratf
+ * @param  color 色彩值
+ * @return       BYTE 大小的经过处理的色彩值
+ */
 BYTE inline clampColor(double color) {
     return (color < CLAMP) ? color : CLAMP;
 }
 
-void Normalization(double *mask, const unsigned long size) {
+/**
+ * 高斯矩阵归一化
+ * @author piratf
+ * @param  mask 高斯矩阵指针
+ * @param  size 高斯矩阵总大小 (height * width)
+ */
+void normalizationMask(double *mask, const unsigned long size) {
     double sum = 0.0;
     for (unsigned long n = 0; n < size; ++n)
         sum += mask[n];
@@ -315,17 +356,23 @@ void Normalization(double *mask, const unsigned long size) {
         mask[n] = mask[n] / sum;
 }
 
+/**
+ * 高斯模糊函数，返回新的 BMP 实体
+ * @author piratf
+ * @param  radius 模糊半径
+ * @return        新的被模糊后的 BMP 实体
+ */
 pBMP pBMP::blur(const long radius) {
     assert(radius > 0);
 
     // use one dimensional gaussian filter mask
     double *mask = oneDimensionalGaussianFilter(radius);
 
-    ImgData *blurData = (ImgData *)malloc(blockSize * sizeof(double));
+    ImgData *blurData = (ImgData *)malloc(blockSize * sizeof(ImgData));
     // printf("%u, %ld\n", blockSize, (long)getDiameter(radius));
     // fflush(stdout);
 
-    Normalization(mask, radius);
+    normalizationMask(mask, radius);
 
     unsigned long n = 0;
     long x = 0;
@@ -352,7 +399,7 @@ pBMP pBMP::blur(const long radius) {
                 i_k = edgeFilp(x, j, height);
                 inx_k = t + i_k * width;
                 r += blurData[inx_k].red * mask[n];
-                g += blurData[inx_k].green  * mask[n];
+                g += blurData[inx_k].green * mask[n];
                 b += blurData[inx_k].blue * mask[n];
             }
             blurData[t].red = clampColor(r);

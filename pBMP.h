@@ -81,11 +81,40 @@ struct ImgData
         green = _green;
         blue = _blue;
     }
+
+    ImgData operator += (const ImgData &other) {
+        red += other.red;
+        green += other.green;
+        blue += other.blue;
+        return *this;
+    }
+
+    ImgData operator / (const long &other) {
+        red /= other;
+        green /= other;
+        blue /= other;
+        return *this;
+    }
+
+    void clear() {
+        red = green = blue = 0;
+    }
 };
 
 class pBMP
 {
 public:
+
+    pBMP operator = (const pBMP &other) {
+        fileHeader = other.fileHeader;
+        infoHeader = other.infoHeader;
+        quad = nullptr;
+        imgData = nullptr;
+        height = other.height;
+        width = other.width;
+        blockSize = other.blockSize;
+        return *this;
+    }
 
     /**
      * read palette from file pointer
@@ -131,6 +160,13 @@ public:
 
     pBMP blur(const long radius);
 
+    pBMP gaussBlur_2 (long radius);
+
+    ~pBMP() {
+        delete [] quad;
+        delete [] imgData;
+    }
+
     static const WORD TYPE_IDENTIFIER = 0x4d42;
     BitmapFileHeader fileHeader;
     BitmapFileInfoHeader infoHeader;
@@ -139,11 +175,8 @@ public:
     unsigned long height;
     unsigned long width;
     unsigned long blockSize;
-
-    ~pBMP() {
-        delete [] quad;
-        delete [] imgData;
-    }
+private:
+    void boxBlur_2 (ImgData *blurData, long radius);
 };
 
 #endif
