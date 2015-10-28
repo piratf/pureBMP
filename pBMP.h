@@ -6,7 +6,7 @@
 using BYTE = unsigned char;
 using WORD = unsigned short;
 using DWORD = unsigned int;
-using LONG = long;
+using LONG = unsigned int;
 
 // const BYTE value 255 for upper limit of the color value
 const BYTE CLAMP = (BYTE)~0;
@@ -128,8 +128,15 @@ public:
         height = other.height;
         width = other.width;
         blockSize = other.blockSize;
+        loadSuccess = other.loadSuccess;
         return *this;
     }
+
+    /**
+     * print infomation of this picture
+     * @author piratf
+     */
+    void display();
 
     /**
      * read palette from file pointer
@@ -181,6 +188,9 @@ public:
      */
     pBMP blur(const long radius);
 
+
+    pBMP zoom(LONG targetHeight, LONG targetWidth);
+
     ~pBMP() {
         delete [] quad;
         delete [] imgData;
@@ -191,9 +201,10 @@ public:
     BitmapFileInfoHeader infoHeader;
     RGBQuad *quad;
     ImgData *imgData;
-    unsigned long height;
-    unsigned long width;
+    LONG height;
+    LONG width;
     unsigned long blockSize;
+    bool loadSuccess = 0;
 };
 
 #endif

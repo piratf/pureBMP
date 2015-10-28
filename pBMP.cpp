@@ -122,6 +122,7 @@ int pBMP::read(const char *filePath) {
     fread(&fileType, 1, sizeof(WORD), fin);
     // 读取文件结构头
     if (TYPE_IDENTIFIER == fileType) {
+        loadSuccess = 1;
         fread(&fileHeader, 1, sizeof(BitmapFileHeader), fin);
         fread(&infoHeader, 1, sizeof(BitmapFileInfoHeader), fin);
         // fileHeader.display();
@@ -144,6 +145,7 @@ int pBMP::read(const char *filePath) {
     }
     else {
         std::cerr << "It is not a .bmp file" << std::endl;
+        loadSuccess = 0;
         return -1;
     }
     return 0;
@@ -156,6 +158,10 @@ int pBMP::read(const char *filePath) {
  * @return          0 - success : -1 - failed
  */
 int pBMP::write(const char* filePath) {
+    if (!loadSuccess) {
+        std::cerr << "ERROR** write -> It is an error img object! " << std::endl;
+        return -1;
+    }
     FILE *fout = fopen(filePath, "wb");
     if (!fout) {
         std::cerr << "ERROR** fopen -> Can't create output file." << std::endl;
@@ -170,8 +176,8 @@ int pBMP::write(const char* filePath) {
         writeQuad(quad, infoHeader, fout);
     }
     // now save the imgData
-    for (unsigned i = 0; i < height; ++i) {
-        for (unsigned j = 0; j < width; ++j) {
+    for (LONG i = 0; i < height; ++i) {
+        for (LONG j = 0; j < width; ++j) {
             fwrite( &(*(imgData + i * width + j)).red, 1, sizeof(BYTE), fout);
             fwrite( &(*(imgData + i * width + j)).green, 1, sizeof(BYTE), fout);
             fwrite( &(*(imgData + i * width + j)).blue, 1, sizeof(BYTE), fout);
@@ -236,8 +242,8 @@ pBMP pBMP::rot(double targetAngle) {
              jmidr = result.width / 2;
     int x = 0,
         y = 0;
-    unsigned xn = 0,
-             yn = 0;
+    LONG xn = 0,
+         yn = 0;
 
     // printf("angle = %lf\n", angle);
     // printf("result height = %lu\n", result.height);
@@ -246,8 +252,8 @@ pBMP pBMP::rot(double targetAngle) {
     angle = angle2Radian(targetAngle);
 
     // Traverse point of the result image, Reverse out original point coordinates. Could be slower. But could save all possible pixels even if the point between to img could not correspondence
-    for (unsigned i = 0; i < result.height; ++i) {
-        for (unsigned j = 0; j < result.width; ++j) {
+    for (LONG i = 0; i < result.height; ++i) {
+        for (LONG j = 0; j < result.width; ++j) {
             x = i - imidr;
             y = j - jmidr;
             xn = x * cos(angle) - y * sin(angle) + imid;
@@ -259,8 +265,8 @@ pBMP pBMP::rot(double targetAngle) {
     }
 
     // Traverse point of the original image, calculate result point and check the position. Could be faster. But will lost some points when the coordinates can not correspondence
-    // for (unsigned i = 0; i < height; ++i) {
-    //     for (unsigned j = 0; j < width; ++j) {
+    // for (LONG i = 0; i < height; ++i) {
+    //     for (LONG j = 0; j < width; ++j) {
     //         x = i - imid;
     //         y = j - jmid;
     //         xn = x * cos(angle) + y * sin(angle) + imidr;
@@ -379,6 +385,45 @@ void normalizationMask(double *mask, const unsigned long size) {
         mask[n] = mask[n] / sum;
 }
 
+pBMP pBMP::zoom(LONG targetHeight, LONG targetWidth) {
+    height = targetHeight;
+    width = targetWidth;
+
+    blockSize = height * width;
+
+    ImgData *zoomData = new ImgData[blockSize];
+    memset(zoomData, 0x3f3f3f3f, sizeof(ImgData) * blockSize);
+
+    // Bilinear interpolation algorithm
+    // for (i = 0; i < desH; i++)
+    // {
+    //     int tH = (int)(rateH * i);
+    //     int tH1 = min(tH + 1, srcH - 1);
+    //     float u = (float)(rateH * i - tH);
+    //     for (j = 0; j < desW; j++)
+    //     {
+    //         int tW = (int)(rateW * j);
+    //         int tW1 = min(tW + 1, srcW - 1);
+    //         float v = (float)(rateW * j - tW);
+
+    //         //f(i+u,j+v) = (1-u)(1-v)f(i,j) + (1-u)vf(i,j+1) + u(1-v)f(i+1,j) + uvf(i+1,j+1)
+    //         for (int k = 0; k < 3; k++)
+    //         {
+    //             desBuf[i * desLineSize + j * bitCount / 8 + k] =
+    //                 (1 - u) * (1 - v) * srcBuf[tH * lineSize + tW * bitCount / 8 + k] +
+    //                 (1 - u) * v * srcBuf[tH1 * lineSize + tW * bitCount / 8 + k] +
+    //                 u * (1 - v) * srcBuf[tH * lineSize + tW1 * bitCount / 8 + k] +
+    //                 u * v * srcBuf[tH1 * lineSize + tW1 * bitCount / 8 + k];
+    //         }
+    //     }
+    // }
+
+
+    pBMP result = *this;
+    result.imgData = zoomData;
+    return result;
+}
+
 /**
  * one dimensional gaussian blur algorithm
  * @author piratf
@@ -392,12 +437,13 @@ pBMP pBMP::blur(const long radius) {
     double *mask = oneDimensionalGaussianFilter(radius);
 
     ImgData *blurData = (ImgData *)malloc(blockSize * sizeof(ImgData));
-
+    memset(blurData, 0, sizeof(ImgData) * blockSize);
     normalizationMask(mask, radius);
 
     unsigned long n = 0;
     long x = 0;
-    unsigned long t, i, j, i_k, inx_k;
+    unsigned long t = 0, i_k = 0, inx_k = 0;
+    LONG i = 0, j = 0;
     for (t = 0, i = 0; i < height; ++i) {
         for (j = 0; j < width; ++j, ++t) {
             for (n = 0, x = -radius; x < radius; ++x, ++n) {
@@ -428,9 +474,27 @@ pBMP pBMP::blur(const long radius) {
         }
     }
 
+
+
     pBMP blurImg = *this;
+    // printf("width: %d\n", blurImg.width);
+    // printf("height: %d\n", blurImg.height);
+    // printf("blockSize: %lu\n", blurImg.blockSize);
     blurImg.imgData = blurData;
 
     delete [] mask;
     return blurImg;
+}
+
+/**
+ * print infomation of this picture
+ * @author piratf
+ */
+void pBMP::display() {
+    if (!loadSuccess) {
+        std::cerr << "ERROR** display -> It is an error img object! " << std::endl;
+        return;
+    }
+    infoHeader.display();
+    fileHeader.display();
 }

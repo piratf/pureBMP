@@ -7,14 +7,27 @@
 const unsigned int FILE_NAME_LENGTH = 30;
 
 int main() {
+// #ifdef linux
+//     printf("linux OS.\n");
+// #endif
+// #ifdef _UNIX
+//     printf("UNIX OS.\n");
+// #endif
+// #ifdef _WIN32
+//     printf("Win32 OS.\n");
+// #endif
+
+    // nice(-20);
     pBMP img;
     img.read("Image\\1.BMP");
     // 打印图像信息
-    // img.infoHeader.display();
+    img.display();
+    printf("sizeof info: %u %u\n", sizeof(img.infoHeader), sizeof(BitmapFileInfoHeader));
+    printf("sizeof file: %u %u\n", sizeof(img.fileHeader), sizeof(BitmapFileHeader));
     //==============================
     //准备旋转图像
+    // img.rot(15).write("Image/5.bmp");
     // char filePath[FILE_NAME_LENGTH] = {};
-    // img.rot(-123).write("Image\\2.BMP");
     // for (int i = -500; i < 500; i += 45) {
     //     sprintf(filePath, "Image\\%d.BMP", i);
     //     time_t start = clock();
@@ -25,14 +38,14 @@ int main() {
 
     //==============================
     // 高斯模糊
-    time_t start = clock();
-    pBMP blur = img.blur(9);
-    time_t end = clock();
-    printf("the running time is : %f\n", double(end - start) / CLOCKS_PER_SEC);
+    // time_t start = clock();
+    img.blur(15).write("Image/3.bmp");
+    // time_t end = clock();
+    // printf("the running time is : %f\n", double(end - start) / CLOCKS_PER_SEC);
 
     //==============================
     // 输出图像
-    blur.write("Image\\3.bmp");
+    // img.write("Image\\3.bmp");
 
     return 0;
 }
