@@ -129,6 +129,7 @@ public:
         width = other.width;
         blockSize = other.blockSize;
         loadSuccess = other.loadSuccess;
+        pixelBytes = other.pixelBytes;
         return *this;
     }
 
@@ -201,10 +202,12 @@ public:
     BitmapFileInfoHeader infoHeader;
     RGBQuad *quad;
     ImgData *imgData;
+    // this height and width here is the original height, width be expanded to multiple of 4
     LONG height;
     LONG width;
     unsigned long blockSize;
     bool loadSuccess = 0;
+    unsigned pixelBytes = 0;
 };
 
 #endif

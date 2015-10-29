@@ -19,14 +19,17 @@ int main() {
 
     // nice(-20);
     pBMP img;
-    img.read("Image\\1.BMP");
+    img.read("Image/11.BMP");
     // 打印图像信息
     img.display();
-    printf("sizeof info: %u %u\n", sizeof(img.infoHeader), sizeof(BitmapFileInfoHeader));
-    printf("sizeof file: %u %u\n", sizeof(img.fileHeader), sizeof(BitmapFileHeader));
+    // printf("sizeof info: %u %u\n", sizeof(img.infoHeader), sizeof(BitmapFileInfoHeader));
+    // printf("sizeof file: %u %u\n", sizeof(img.fileHeader), sizeof(BitmapFileHeader));
+    // int bit = (img.blockSize * sizeof(ImgData) + sizeof(img.infoHeader) + sizeof(img.fileHeader));
+    // double imgSize = bit / 1024 / 1024;
+    // printf("total imgSize = %.4lf\n", imgSize);
     //==============================
     //准备旋转图像
-    // img.rot(15).write("Image/5.bmp");
+    // img.rot(0).write("Image/2.bmp");
     // char filePath[FILE_NAME_LENGTH] = {};
     // for (int i = -500; i < 500; i += 45) {
     //     sprintf(filePath, "Image\\%d.BMP", i);

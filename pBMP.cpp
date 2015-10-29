@@ -11,10 +11,10 @@
  * @author piratf
  */
 void BitmapFileHeader::display() {
-    std::cout << "文件大小: " << bfSize << std::endl;
-    std::cout << "保留字_1: " << bfReserved1 << std::endl;
-    std::cout << "保留字_2: " << bfReserved2 << std::endl;
-    std::cout << "实际位图数据的偏移字节数: " << bfOffBits << std::endl << std::endl;
+    std::cout << "bfSize - 文件大小: " << bfSize << std::endl;
+    std::cout << "bfReserved1 - 保留字_1: " << bfReserved1 << std::endl;
+    std::cout << "bfReserved2 - 保留字_2: " << bfReserved2 << std::endl;
+    std::cout << "bfOffBits - 实际位图数据的偏移字节数: " << bfOffBits << std::endl << std::endl;
 }
 
 /**
@@ -83,9 +83,10 @@ double inline dmod(double var, unsigned MOD) {
 void pBMP::readQuad(RGBQuad *quad, BitmapFileInfoHeader &infoHeader, FILE *fpi) {
     for (unsigned int nCounti = 0; nCounti < infoHeader.biClrUsed; nCounti++)
     {
-        fread((char *)&quad[nCounti].rgbBlue, 1, sizeof(BYTE), fpi);
-        fread((char *)&quad[nCounti].rgbGreen, 1, sizeof(BYTE), fpi);
-        fread((char *)&quad[nCounti].rgbRed, 1, sizeof(BYTE), fpi);
+        fread((BYTE *)&quad[nCounti].rgbBlue, 1, sizeof(BYTE), fpi);
+        fread((BYTE *)&quad[nCounti].rgbGreen, 1, sizeof(BYTE), fpi);
+        fread((BYTE *)&quad[nCounti].rgbRed, 1, sizeof(BYTE), fpi);
+        fread((BYTE *)&quad[nCounti].rgbReserved, 1, sizeof(BYTE), fpi);
     }
 }
 
@@ -100,9 +101,10 @@ void pBMP::writeQuad(RGBQuad *strPla, BitmapFileInfoHeader &infoHeader, FILE *fp
     for (unsigned int nCounti = 0; nCounti < infoHeader.biClrUsed; nCounti++)
     {
         //存储的时候，一般去掉保留字rgbReserved
-        fwrite((char *)&strPla[nCounti].rgbBlue, 1, sizeof(BYTE), fpi);
-        fwrite((char *)&strPla[nCounti].rgbGreen, 1, sizeof(BYTE), fpi);
-        fwrite((char *)&strPla[nCounti].rgbRed, 1, sizeof(BYTE), fpi);
+        fwrite((BYTE *)&strPla[nCounti].rgbBlue, 1, sizeof(BYTE), fpi);
+        fwrite((BYTE *)&strPla[nCounti].rgbGreen, 1, sizeof(BYTE), fpi);
+        fwrite((BYTE *)&strPla[nCounti].rgbRed, 1, sizeof(BYTE), fpi);
+        fwrite((BYTE *)&strPla[nCounti].rgbReserved, 1, sizeof(BYTE), fpi);
     }
 }
 
@@ -134,13 +136,19 @@ int pBMP::read(const char *filePath) {
             readQuad(quad, infoHeader, fin);
         }
 
-        width = infoHeader.biWidth;
-        height = infoHeader.biHeight;
+        // must be integer multiples of 4, otherwise could read error data.
+        width = (infoHeader.biWidth + 3) / 4 * 4;
+        height = (infoHeader.biHeight + 3) / 4 * 4;
+        // width = infoHeader.biWidth;
+        // height = infoHeader.biHeight;
         blockSize = width * height;
+        pixelBytes = infoHeader.biBitCount / 8;
 
         // read imgData
-        imgData = (ImgData*)malloc(sizeof(ImgData) * width * height);
-        fread(imgData, sizeof(ImgData) * width, height, fin);
+        // jump to offbit 
+        fseek(fin, fileHeader.bfOffBits, SEEK_SET);
+        imgData = (ImgData*)malloc(sizeof(BYTE) * pixelBytes * blockSize);
+        fread(imgData, sizeof(BYTE) * pixelBytes * width, height, fin);
         fclose(fin);
     }
     else {
@@ -211,25 +219,26 @@ pBMP pBMP::rot(double targetAngle) {
     // printf("radianHeight = %lf\n", radian2Angle(radianHeight));
     // get the height of target img.
     double targetHeight = diagonal * sin(radianHeight);
-    // printf("targetHeight = %lf\n", targetHeight);
+    printf("targetHeight = %lf\n", targetHeight);
 
     // sum radian of rotation angle and base angel between diagonal and width
     double radianWidth = angle2Radian(dmod(angle + (90 - radian2Angle(baseAngleHeight)), 180));
     // width of the target img.
     double targetWidth = diagonal * sin(radianWidth);
-    // printf("target Width = %lf\n", targetWidth);
-    // fflush(stdout);
+    printf("target Width = %lf\n", targetWidth);
+    fflush(stdout);
 
     // the output image
     pBMP result = *this;
     // the width and height of .BMP need to be a multiple of 4
-    result.width = ((LONG)ceil(targetWidth) + 3) / 4 * 4;
-    result.height = ((LONG)ceil(targetHeight) + 3) / 4 * 4;
+    result.infoHeader.biWidth = (LONG)(ceil(targetWidth));
+    result.width = (result.infoHeader.biWidth + 3) / 4 * 4;
+    result.infoHeader.biHeight = (LONG)(ceil(targetHeight));
+    result.height = (result.infoHeader.biHeight + 3) / 4 * 4;
     result.blockSize = result.width * result.height;
+    printf("biWidth = %u, width = %u\nbiHeight = %u, height = %u", result.infoHeader.biWidth, result.width, result.infoHeader.biHeight, result.height);
 
-    result.infoHeader.biWidth = result.width;
-    result.infoHeader.biHeight = result.height;
-    unsigned block = sizeof(ImgData) * result.height * result.width;
+    unsigned block = sizeof(BYTE) * pixelBytes * result.height * result.width;
     ImgData *rotData = (ImgData*)malloc(block);
     memset(rotData, 0x3f3f3f3f, block);
 
@@ -258,7 +267,7 @@ pBMP pBMP::rot(double targetAngle) {
             y = j - jmidr;
             xn = x * cos(angle) - y * sin(angle) + imid;
             yn = x * sin(angle) + y * cos(angle) + jmid;
-            if (xn <= height && yn <= width) {
+            if (xn <= infoHeader.biHeight && yn <= infoHeader.biWidth) {
                 *(rotData + i * result.width + j) = *(imgData + xn * width + yn);
             }
         }
@@ -392,7 +401,7 @@ pBMP pBMP::zoom(LONG targetHeight, LONG targetWidth) {
     blockSize = height * width;
 
     ImgData *zoomData = new ImgData[blockSize];
-    memset(zoomData, 0x3f3f3f3f, sizeof(ImgData) * blockSize);
+    memset(zoomData, 0x3f3f3f3f, sizeof(BYTE) * pixelBytes * blockSize);
 
     // Bilinear interpolation algorithm
     // for (i = 0; i < desH; i++)
@@ -436,13 +445,15 @@ pBMP pBMP::blur(const long radius) {
     // use one dimensional gaussian filter mask
     double *mask = oneDimensionalGaussianFilter(radius);
 
-    ImgData *blurData = (ImgData *)malloc(blockSize * sizeof(ImgData));
-    memset(blurData, 0, sizeof(ImgData) * blockSize);
+    ImgData *blurData = (ImgData *)malloc(blockSize * sizeof(BYTE) * pixelBytes);
+    // memcpy(blurData, imgData, sizeof(BYTE) * pixelBytes * blockSize);
+    memset(blurData, 0, infoHeader.biSizeImage);
     normalizationMask(mask, radius);
 
     unsigned long n = 0;
     long x = 0;
     unsigned long t = 0, i_k = 0, inx_k = 0;
+    double r = 0.0, g = 0.0, b = 0.0;
     LONG i = 0, j = 0;
     for (t = 0, i = 0; i < height; ++i) {
         for (j = 0; j < width; ++j, ++t) {
@@ -456,7 +467,6 @@ pBMP pBMP::blur(const long radius) {
         }
     }
 
-    double r = 0.0, g = 0.0, b = 0.0;
     for (t = 0, i = 0; i < width; ++i) {
         for (j = 0; j < height; ++j) {
             t = j * width + i;
